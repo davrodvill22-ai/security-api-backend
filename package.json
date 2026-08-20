@@ -1,0 +1,22 @@
+{
+  "name": "security-api",
+  "version": "1.0.0",
+  "description": "Backend REST API demonstrating the API Key Authentication Anti-Pattern",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test tests/api.test.js"
+  },
+  "keywords": [
+    "security",
+    "api-key",
+    "anti-pattern",
+    "cybersecurity",
+    "rest-api",
+    "node"
+  ],
+  "author": "Security Engineering Student",
+  "license": "MIT"
+}
