@@ -7,7 +7,7 @@
  * 3. Does not provide user identity, session state, token expiration, or signature validation.
  */
 function apiKeyAuth(req, res, next) {
-  const expectedApiKey = process.env.API_KEY || 'security-secret-key-2026';
+  const expectedApiKey = process.env.API_KEY;
   const providedApiKey = req.headers['x-api-key'];
 
   // Check 1: Does the request contain x-api-key?

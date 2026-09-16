@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const requestListener = require('../src/app');
 
-const VALID_KEY = process.env.API_KEY || 'security-secret-key-2026';
+const VALID_KEY = process.env.API_KEY;
 const INVALID_KEY = 'invalid-fake-key-99999';
 
 let server;

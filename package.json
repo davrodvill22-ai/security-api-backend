@@ -18,5 +18,9 @@
     "node"
   ],
   "author": "Security Engineering Student",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "ldap-authentication": "^4.4.1",
+    "mysql2": "^3.24.4"
+  }
 }

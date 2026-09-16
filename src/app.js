@@ -23,13 +23,24 @@ function loadEnv() {
   }
 }
 
+// Load variables BEFORE requiring services
+loadEnv();
+
+const cryptoService = require('./services/cryptoService');
+const db = require('./services/db');
+const ldapService = require('./services/ldapService');
+
+// Initialize real database table
+db.initDB();
+
 loadEnv();
 
 /**
  * Validates the 'x-api-key' header (Anti-pattern implementation)
  */
 function validateApiKey(req) {
-  const expectedKey = process.env.API_KEY || 'security-secret-key-2026';
+  loadEnv(); // Recargar .env en cada petición para la rotación automática en vivo
+  const expectedKey = process.env.API_KEY;
   // Node.js lowercases all incoming header names
   const providedKey = req.headers['x-api-key'];
 
@@ -103,18 +114,33 @@ function requestListener(req, res) {
     });
   }
 
-  // Route 2: GET /api/data (Protected Static JSON)
+  // Route 2: GET /api/data (Protected Database JSON)
   if (method === 'GET' && pathname === '/api/data') {
     const authResult = validateApiKey(req);
     if (!authResult.authorized) {
       return sendJson(authResult.statusCode, authResult.payload);
     }
 
-    return sendJson(200, {
-      message: 'Protected data',
-      course: 'Security Exercise',
-      status: 'success'
-    });
+    db.pool.query('SELECT * FROM encrypted_messages ORDER BY id DESC LIMIT 50')
+      .then(([rows]) => {
+        const decryptedRecords = rows.map(row => {
+          try {
+            return JSON.parse(cryptoService.decrypt(row.encrypted_data));
+          } catch (e) {
+            return { error: 'Failed to decrypt', id: row.id };
+          }
+        });
+
+        return sendJson(200, {
+          message: 'Protected data retrieved and decrypted from MySQL DB',
+          records: decryptedRecords,
+          status: 'success'
+        });
+      })
+      .catch(err => {
+        return sendJson(500, { error: 'Database error', details: err.message });
+      });
+    return;
   }
 
   // Route 3: POST /api/data (Protected Action)
@@ -124,9 +150,60 @@ function requestListener(req, res) {
       return sendJson(authResult.statusCode, authResult.payload);
     }
 
-    return sendJson(200, {
-      message: 'POST received'
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
     });
+    req.on('end', () => {
+      try {
+        const parsedData = JSON.parse(body || '{}');
+        const encryptedData = cryptoService.encrypt(JSON.stringify(parsedData));
+        
+        db.pool.query('INSERT INTO encrypted_messages (encrypted_data) VALUES (?)', [encryptedData])
+          .then(([result]) => {
+            return sendJson(200, {
+              message: 'POST received and encrypted safely into MySQL DB',
+              inserted_id: result.insertId
+            });
+          })
+          .catch(err => {
+            return sendJson(500, { error: 'Database insert error', details: err.message });
+          });
+      } catch (e) {
+        return sendJson(400, { error: 'Bad JSON', details: e.message });
+      }
+    });
+    return; // Wait for end event
+  }
+
+  // Route 4: POST /api/login (Public LDAP authentication)
+  if (method === 'POST' && pathname === '/api/login') {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', async () => {
+      try {
+        const { username, password } = JSON.parse(body || '{}');
+        if (!username || !password) {
+          return sendJson(400, { error: 'Faltan credenciales' });
+        }
+        
+        const authResult = await ldapService.loginWithLDAP(username, password);
+        
+        if (authResult.success) {
+          return sendJson(200, {
+            message: 'Login exitoso',
+            user: authResult.user
+          });
+        } else {
+          return sendJson(401, { error: authResult.error });
+        }
+      } catch (e) {
+        return sendJson(400, { error: 'Bad JSON', details: e.message });
+      }
+    });
+    return;
   }
 
   // 404 Not Found
